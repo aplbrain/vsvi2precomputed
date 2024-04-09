@@ -1,53 +1,99 @@
 import json
 import os
-from cloudvolume import CloudVolume
-import boto3
+import io
 
-def parse_vsvi(vsvi_dataset_path, aws_profile_name="default", region='us-east-1'):
-    if vsvi_dataset_path.startswith('s3://'):
-        bucket, key = vsvi_dataset_path.replace('s3://', '').split('/', 1)
-        session = boto3.Session(profile_name=aws_profile_name, region_name=region)
-        s3 = session.resource('s3')
-        vsvi_data = json.load(s3.Object(Bucket=bucket, key=key).get())
+import numpy as np
+from PIL import Image
+from cloudvolume import CloudVolume
+from joblib import Parallel, delayed
+from tqdm import tqdm
+
+
+def parse_vsvi(vsvi_dataset_path, s3_client=None):
+    if vsvi_dataset_path.startswith("s3://") and s3_client:
+        bucket, key = vsvi_dataset_path.replace("s3://", "").split("/", 1)
+        json_data = _get_object_data(bucket, key, s3_client).decode("utf-8")
     else:
-        with open(vsvi_dataset_path, 'r') as file:
-            vsvi_data = json.load(file)
-    
+        with open(vsvi_dataset_path, "r") as file:
+            json_data = file.read()
+
+    vsvi_data = json.loads(json_data.replace("\\", "/"))
     return vsvi_data
 
+
 def create_precomputed_info(vsvi_data, cloudpath):
-    info = {
-        "data_type": "uint8" if vsvi_data["SourceBytesPerPixel"] == 1 else "uint16",
-        "num_channels": 1,
-        "scales": [{
-            "chunk_sizes": [[vsvi_data["SourceTileSizeX"], vsvi_data["SourceTileSizeY"], 1]],
-            "encoding": "raw",
-            "key": "mip0",
-            "resolution": [vsvi_data["TargetVoxelSizeXnm"], vsvi_data["TargetVoxelSizeYnm"], vsvi_data["TargetVoxelSizeZnm"]],
-            "size": [vsvi_data["TargetDataSizeX"], vsvi_data["TargetDataSizeY"], vsvi_data["TargetDataSizeZ"]],
-            "voxel_offset": [vsvi_data["OffsetX"], vsvi_data["OffsetY"], vsvi_data["OffsetZ"]]
-        }],
-        "type": "image"
-    }
-    
+    info = CloudVolume.create_new_info(
+        num_channels=1,
+        layer_type="image",
+        data_type="uint8" if vsvi_data["SourceBytesPerPixel"] == 1 else "uint16",
+        encoding="raw",
+        resolution=[
+            vsvi_data["TargetVoxelSizeXnm"],
+            vsvi_data["TargetVoxelSizeYnm"],
+            vsvi_data["TargetVoxelSizeZnm"],
+        ],
+        voxel_offset=[vsvi_data["OffsetX"], vsvi_data["OffsetY"], vsvi_data["OffsetZ"]],
+        chunk_size=[vsvi_data["SourceTileSizeX"], vsvi_data["SourceTileSizeY"], 1],
+        volume_size=[
+            vsvi_data["TargetDataSizeX"],
+            vsvi_data["TargetDataSizeY"],
+            vsvi_data["TargetDataSizeZ"],
+        ],
+    )
+
     vol = CloudVolume(cloudpath, info=info)
     vol.commit_info()
+    return info
 
 
-def upload_tiles_to_precomputed(vsvi_data, cloudpath, source_dir):
-    vol = CloudVolume(cloudpath, mip=0, parallel=True)
+def upload_tiles_to_precomputed(vsvi_root_path, vsvi_data, cloudpath, s3_client):
 
-    # Example loop 
-    for s in range(vsvi_data["SourceMinS"], vsvi_data["SourceMaxS"] + 1):
-        for r in range(vsvi_data["SourceMinR"], vsvi_data["SourceMaxR"] + 1):
-            for c in range(vsvi_data["SourceMinC"], vsvi_data["SourceMaxC"] + 1):
-                # Construct file path based on VSVI parameters
-                # Note: You might need to adjust the file path pattern based on the actual file naming
-                file_name = vsvi_data["SourceFileNameTemplate"].replace("%04d", "{:04d}").format(s, r, c)
-                file_path = os.path.join(source_dir, file_name)
-                if os.path.exists(file_path):
-                    # Load the image and upload it to the specified location
-                    # You will need to add the logic to read the PNG file and upload it.
-                    pass
+    bucket, base_prefix = vsvi_root_path.replace("s3://", "").split("/", 1)
+    source_prefix = vsvi_data.get("SourceFileNameTemplate").split("/")[1]
+    prefix = os.path.join(base_prefix, source_prefix)
+
+    vol = CloudVolume(cloudpath, mip=0, parallel=True, fill_missing=True)
+    for key in tqdm(_list_objects(bucket, prefix, s3_client)):
+        _upload_tile_to_precomputed(vol, bucket, key, vsvi_data, s3_client)
 
 
+### Utility Functions ###
+
+
+def _upload_tile_to_precomputed(vol, bucket, key, vsvi_data, s3_client):
+    filename = key.split("/")[-1]
+    z, y, x = _parse_filename(filename)
+    z = z - vsvi_data["SourceMinS"]
+    y = y - vsvi_data["SourceMinC"]
+    x = x - vsvi_data["SourceMinR"]
+
+    dx, dy = vsvi_data["SourceTileSizeX"], vsvi_data["SourceTileSizeY"]
+    dz = 1
+    x_start, y_start, z_start = x * dx, y * dy, z
+
+    image_data = io.BytesIO(_get_object_data(bucket, key, s3_client))
+    vol[x_start : x_start + dx, y_start : y_start + dy, z_start : z_start + dz] = (
+        np.expand_dims(np.asarray(Image.open(image_data)), 2)
+    )
+
+
+def _get_object_data(bucket, key, s3_client):
+    response = s3_client.get_object(Bucket=bucket, Key=key)
+    return response["Body"].read()
+
+
+def _list_objects(bucket, prefix, s3_client):
+    paginator = s3_client.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+        for object in page["Contents"]:
+            yield object["Key"]
+
+
+def _parse_filename(filename):
+    # 0001_W01_Sec001_tr10-tc16.png
+    parts = filename.replace(".png", "").split("_")
+    tr, tc = parts[-1].split("-")
+    z = int(parts[0])
+    y = int(tc[2:])
+    x = int(tr[2:])
+    return z, y, x

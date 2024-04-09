@@ -31,8 +31,8 @@ setup(
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
-        "Programming Language :: Python :: 3.4",
-        "Programming Language :: Python :: 3.5",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
     ],
     keywords=["VAST", "Precomputed", "VSVI", "Neuroglancer"],
     packages=find_packages(exclude=["docs", "tests*"]),
