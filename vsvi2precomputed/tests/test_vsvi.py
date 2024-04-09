@@ -89,6 +89,11 @@ def example_s3_uri():
     return "s3://smart-em-datasets/datasets/Neha_1mm_wafer/mip0/0001_W01_Sec001/0001_W01_Sec001_tr10-tc16.png"
 
 
+@pytest.fixture
+def example_s3_uri_border():
+    return "s3://smart-em-datasets/datasets/Neha_1mm_wafer/mip0/0001_W01_Sec001/0001_W01_Sec001_tr36-tc47.png"
+
+
 ### TESTS ###
 
 
@@ -102,7 +107,6 @@ def test_create_precomputed_info(
 ):
     vsvi_data = vp.parse_vsvi(vsvi_cloud_path, s3_client)
     info = vp.create_precomputed_info(vsvi_data, precomputed_cloud_path)
-    print(info)
     assert info == expected_precomputed_info
 
 
@@ -117,7 +121,7 @@ def test_get_objects(vsvi_mip0_path, s3_client):
 
 def test_parse_filename(example_filename):
     z, y, x = vp._parse_filename(example_filename)
-    assert (z, y, x) == (1, 16, 10)
+    assert (z, y, x) == (1, 10, 16)
 
 
 def test_upload_tile(
@@ -125,5 +129,14 @@ def test_upload_tile(
 ):
     bucket, key = example_s3_uri.replace("s3://", "").split("/", 1)
     vsvi_data = vp.parse_vsvi(vsvi_cloud_path, s3_client)
-    vol = CloudVolume(precomputed_cloud_path, mip=0, parallel=True, fill_missing=True)
+    vol = CloudVolume(precomputed_cloud_path, mip=0, parallel=False, fill_missing=True)
+    vp._upload_tile_to_precomputed(vol, bucket, key, vsvi_data, s3_client)
+
+
+def test_upload_tile_border(
+    precomputed_cloud_path, example_s3_uri_border, vsvi_cloud_path, s3_client
+):
+    bucket, key = example_s3_uri_border.replace("s3://", "").split("/", 1)
+    vsvi_data = vp.parse_vsvi(vsvi_cloud_path, s3_client)
+    vol = CloudVolume(precomputed_cloud_path, mip=0, parallel=False, fill_missing=True)
     vp._upload_tile_to_precomputed(vol, bucket, key, vsvi_data, s3_client)

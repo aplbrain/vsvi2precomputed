@@ -9,6 +9,7 @@ from joblib import Parallel, delayed
 from tqdm import tqdm
 
 
+
 def parse_vsvi(vsvi_dataset_path, s3_client=None):
     if vsvi_dataset_path.startswith("s3://") and s3_client:
         bucket, key = vsvi_dataset_path.replace("s3://", "").split("/", 1)
@@ -52,7 +53,7 @@ def upload_tiles_to_precomputed(vsvi_root_path, vsvi_data, cloudpath, s3_client)
     source_prefix = vsvi_data.get("SourceFileNameTemplate").split("/")[1]
     prefix = os.path.join(base_prefix, source_prefix)
 
-    vol = CloudVolume(cloudpath, mip=0, parallel=True, fill_missing=True)
+    vol = CloudVolume(cloudpath, mip=0, parallel=False, fill_missing=True)
     for key in tqdm(_list_objects(bucket, prefix, s3_client)):
         _upload_tile_to_precomputed(vol, bucket, key, vsvi_data, s3_client)
 
@@ -64,16 +65,19 @@ def _upload_tile_to_precomputed(vol, bucket, key, vsvi_data, s3_client):
     filename = key.split("/")[-1]
     z, y, x = _parse_filename(filename)
     z = z - vsvi_data["SourceMinS"]
-    y = y - vsvi_data["SourceMinC"]
-    x = x - vsvi_data["SourceMinR"]
+    y = y - vsvi_data["SourceMinR"]
+    x = x - vsvi_data["SourceMinC"]
 
     dx, dy = vsvi_data["SourceTileSizeX"], vsvi_data["SourceTileSizeY"]
     dz = 1
     x_start, y_start, z_start = x * dx, y * dy, z
+    x_stop = min(x_start + dx, vsvi_data["TargetDataSizeX"])
+    y_stop = min(y_start + dy, vsvi_data["TargetDataSizeY"])
+    z_stop = z_start + 1
 
     image_data = io.BytesIO(_get_object_data(bucket, key, s3_client))
-    vol[x_start : x_start + dx, y_start : y_start + dy, z_start : z_start + dz] = (
-        np.expand_dims(np.asarray(Image.open(image_data)), 2)
+    vol[x_start : x_stop, y_start : y_stop, z_start : z_stop] = (
+        np.expand_dims(np.asarray(Image.open(image_data)).T, 2)
     )
 
 
@@ -94,6 +98,6 @@ def _parse_filename(filename):
     parts = filename.replace(".png", "").split("_")
     tr, tc = parts[-1].split("-")
     z = int(parts[0])
-    y = int(tc[2:])
-    x = int(tr[2:])
+    x = int(tc[2:])
+    y = int(tr[2:])
     return z, y, x
