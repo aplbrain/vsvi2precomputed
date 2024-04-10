@@ -1,3 +1,4 @@
 cloud-volume
 joblib
 tqdm
+pillow

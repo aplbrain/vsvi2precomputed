@@ -20,12 +20,6 @@ def precomputed_cloud_path():
 
 
 @pytest.fixture
-def s3_client():
-    session = boto3.Session(profile_name="smartem", region_name="us-east-1")
-    return session.client("s3")
-
-
-@pytest.fixture
 def expected_vsvi_data():
     return {
         "Comment": "Neha_1mm_ROI1",
@@ -91,29 +85,28 @@ def example_s3_uri():
 
 @pytest.fixture
 def example_s3_uri_border():
-    return "s3://smart-em-datasets/datasets/Neha_1mm_wafer/mip0/0001_W01_Sec001/0001_W01_Sec001_tr36-tc47.png"
+    return "s3://smart-em-datasets/datasets/Neha_1mm_wafer/mip0/0026_W01_Sec026/0026_W01_Sec026_tr22-tc47.png"
 
 
 ### TESTS ###
 
 
-def test_parse_vsvi_cloud(vsvi_cloud_path, expected_vsvi_data, s3_client):
-    vsvi_data = vp.parse_vsvi(vsvi_cloud_path, s3_client)
+def test_parse_vsvi_cloud(vsvi_cloud_path, expected_vsvi_data):
+    vsvi_data = vp.parse_vsvi(vsvi_cloud_path)
     assert vsvi_data == expected_vsvi_data
 
 
 def test_create_precomputed_info(
-    vsvi_cloud_path, precomputed_cloud_path, expected_precomputed_info, s3_client
-):
-    vsvi_data = vp.parse_vsvi(vsvi_cloud_path, s3_client)
+    vsvi_cloud_path, precomputed_cloud_path, expected_precomputed_info):
+    vsvi_data = vp.parse_vsvi(vsvi_cloud_path)
     info = vp.create_precomputed_info(vsvi_data, precomputed_cloud_path)
     assert info == expected_precomputed_info
 
 
-def test_get_objects(vsvi_mip0_path, s3_client):
+def test_get_objects(vsvi_mip0_path):
     bucket, prefix = vsvi_mip0_path.replace("s3://", "").split("/", 1)
     i = 0
-    for key in vp._list_objects(bucket, prefix, s3_client):
+    for key in vp._list_objects(bucket, prefix):
         i += 1
         if i > 100:
             break
@@ -125,18 +118,18 @@ def test_parse_filename(example_filename):
 
 
 def test_upload_tile(
-    precomputed_cloud_path, example_s3_uri, vsvi_cloud_path, s3_client
+    precomputed_cloud_path, example_s3_uri, vsvi_cloud_path
 ):
     bucket, key = example_s3_uri.replace("s3://", "").split("/", 1)
-    vsvi_data = vp.parse_vsvi(vsvi_cloud_path, s3_client)
+    vsvi_data = vp.parse_vsvi(vsvi_cloud_path)
     vol = CloudVolume(precomputed_cloud_path, mip=0, parallel=False, fill_missing=True)
-    vp._upload_tile_to_precomputed(vol, bucket, key, vsvi_data, s3_client)
+    vp._upload_tile_to_precomputed(vol, bucket, key, vsvi_data)
 
 
 def test_upload_tile_border(
-    precomputed_cloud_path, example_s3_uri_border, vsvi_cloud_path, s3_client
+    precomputed_cloud_path, example_s3_uri_border, vsvi_cloud_path
 ):
     bucket, key = example_s3_uri_border.replace("s3://", "").split("/", 1)
-    vsvi_data = vp.parse_vsvi(vsvi_cloud_path, s3_client)
+    vsvi_data = vp.parse_vsvi(vsvi_cloud_path)
     vol = CloudVolume(precomputed_cloud_path, mip=0, parallel=False, fill_missing=True)
-    vp._upload_tile_to_precomputed(vol, bucket, key, vsvi_data, s3_client)
+    vp._upload_tile_to_precomputed(vol, bucket, key, vsvi_data)
