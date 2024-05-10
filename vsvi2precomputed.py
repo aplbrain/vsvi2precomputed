@@ -24,6 +24,7 @@ def main():
     vsvi_cloud_path = args.input_vsvi
 
     vsvi_data = vp.parse_vsvi(vsvi_cloud_path)
+    info = vp.create_precomputed_info(vsvi_data, precomputed_cloud_path)
     vp.upload_tiles_to_precomputed(vsvi_root_path, vsvi_data, precomputed_cloud_path)
     print("Done")
 
