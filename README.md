@@ -2,6 +2,10 @@
 ![Logo](logo.png)
 Package for converting VSVI (used in VAST) image datasets to precomputed volumes.
 
+Requirements:
+* Python
+* AWS CLI (for now)
+
 ## Usage
 ```
 pip install -r requirements.txt
