@@ -16,7 +16,18 @@ def main():
     parser.add_argument('-o', '--output_dir', help="Path to s3 location for converted output")
 
     args = parser.parse_args()
-    # TODO: add some validation like for trailing slash on output dir
+
+    if args.input_vsvi[:5] != "s3://":
+        raise ValueError("Input path must begin with s3://")
+
+    if args.output_dir[:5] != "s3://":
+        raise ValueError("Output path must begin with s3://")
+
+    if args.input_vsvi[-5:] != ".vsvi":
+        raise ValueError("Input must be a vsvi file")
+
+    if args.output_dir[-1:] != "/":
+        raise ValueError("Output must be a directory path ending in /")
 
     precomputed_cloud_path = args.output_dir
 
