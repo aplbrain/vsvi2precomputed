@@ -61,7 +61,7 @@ def upload_tiles_to_precomputed(vsvi_root_path, vsvi_data, cloudpath):
 
     bucket, base_prefix = vsvi_root_path.replace("s3://", "").split("/", 1)
     source_prefix = vsvi_data.get("SourceFileNameTemplate").split("/")[1]
-    prefix = os.path.join(base_prefix, source_prefix)
+    prefix = "/".join([base_prefix, source_prefix])
 
     vol = CloudVolume(cloudpath, mip=0, parallel=False, fill_missing=True, non_aligned_writes=True)
     # for key in tqdm(_list_objects(bucket, prefix, s3_client)):
