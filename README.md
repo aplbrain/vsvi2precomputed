@@ -18,3 +18,13 @@ Optional Arguments
 | Argument  | Description          | Default |
 |-----------|----------------------|---------|
 | --profile | AWS CLI profile name | default |
+
+## Tests
+```
+pip install pytest
+pytest
+```
+To use an non-default AWS CLI profile:
+```
+pytest --profile <profile-name>
+```

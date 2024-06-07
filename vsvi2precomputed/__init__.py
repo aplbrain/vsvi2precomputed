@@ -120,6 +120,7 @@ def _list_objects(bucket, prefix, start_at=0):
 
 def _parse_filename(filename, template):
     # 0001_W01_Sec001_tr10-tc16.png
+    filename = pathlib.Path(filename)
 
     # Template for where z, y, x are in the string is given in vsvi file, but
     #   may not have same path type as filesystem code is running on
