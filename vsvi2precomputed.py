@@ -14,8 +14,10 @@ def main():
     )
     parser.add_argument('-i', '--input_vsvi', help="Path to s3 location of input dataset .vsvi file")
     parser.add_argument('-o', '--output_dir', help="Path to s3 location for converted output")
+    parser.add_argument('--profile', default="default", help="AWS CLI profile name to use. Defaults to default")
 
     args = parser.parse_args()
+    os.environ["AWS_PROFILE"] = args.profile
 
     if args.input_vsvi[:5] != "s3://":
         raise ValueError("Input path must begin with s3://")

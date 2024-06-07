@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 
 def parse_vsvi(vsvi_dataset_path):
-    session = boto3.Session(profile_name='default', region_name='us-east-1')
+    session = boto3.Session()
     s3_client = session.client('s3')
     if vsvi_dataset_path.startswith("s3://"):
         bucket, key = vsvi_dataset_path.replace("s3://", "").split("/", 1)
@@ -99,14 +99,14 @@ def _upload_tile_to_precomputed(vol, bucket, key, vsvi_data):
             raise error
 
 def _get_object_data(bucket, key):
-    session = boto3.Session(profile_name='default', region_name='us-east-1')
+    session = boto3.Session()
     s3_client = session.client('s3')
     response = s3_client.get_object(Bucket=bucket, Key=key)
     return response["Body"].read()
 
 
 def _list_objects(bucket, prefix, start_at=0):
-    session = boto3.Session(profile_name='default', region_name='us-east-1')
+    session = boto3.Session()
     s3_client = session.client('s3')
     paginator = s3_client.get_paginator("list_objects_v2")
     num_obj = 0
