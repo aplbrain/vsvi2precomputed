@@ -1,8 +1,11 @@
 import pytest
-import boto3
+import os
 from cloudvolume import CloudVolume
-import vsvi2precomputed as vp
+from .. import vsvi2precomputed as vp
 
+@pytest.fixture(scope="session", autouse=True)
+def set_env(request):
+    os.environ["AWS_PROFILE"] = request.config.getoption("--profile")
 
 @pytest.fixture
 def vsvi_cloud_path():
@@ -52,6 +55,10 @@ def expected_vsvi_data():
         "TargetVoxelSizeZnm": 30,
         "TargetLayerName": "Neha_1mm_ROI1",
     }
+
+@pytest.fixture
+def source_file_name_template():
+    return "./mip0/%04d_*/%04d_*_tr%d-tc%d.png"
 
 
 @pytest.fixture
@@ -112,8 +119,8 @@ def test_get_objects(vsvi_mip0_path):
             break
 
 
-def test_parse_filename(example_filename):
-    z, y, x = vp._parse_filename(example_filename)
+def test_parse_filename(example_filename, source_file_name_template):
+    z, y, x = vp._parse_filename(example_filename, source_file_name_template)
     assert (z, y, x) == (1, 10, 16)
 
 

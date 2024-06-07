@@ -1,4 +1,4 @@
-import vsvi2precomputed as vp
+from .. import vsvi2precomputed as vp
 import boto3
 
 
