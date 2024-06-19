@@ -5,6 +5,7 @@ import re
 import pathlib
 
 import boto3
+import botocore
 import numpy as np
 from PIL import Image
 from cloudvolume import CloudVolume
@@ -12,22 +13,26 @@ from joblib import Parallel, delayed
 from tqdm import tqdm
 
 
-
-def parse_vsvi(vsvi_dataset_path):
-    session = boto3.Session()
-    s3_client = session.client('s3')
+def fetch_s3_vsvi(vsvi_dataset_path):
     if vsvi_dataset_path.startswith("s3://"):
         bucket, key = vsvi_dataset_path.replace("s3://", "").split("/", 1)
-        json_data = _get_object_data(bucket, key).decode("utf-8")
-    else:
-        with open(vsvi_dataset_path, "r") as file:
-            json_data = file.read()
+        try:
+            json_data = _get_object_data(bucket, key).decode("utf-8")
+        except botocore.exceptions.ClientError as error:
+            raise ValueError("File not found in S3. Check credentials and that the path is correct.") from error
 
     vsvi_data = json.loads(json_data.replace("\\", "/"))
     return vsvi_data
 
+def read_local_vsvi(vsvi_dataset_path):
+    with open(vsvi_dataset_path, "r") as file:
+        json_data = file.read()
+
+    vsvi_data = json.loads(json_data.replace("\\", "/"))
+    return vsvi_data
 
 def create_precomputed_info(vsvi_data, cloudpath):
+    # TODO: Need to add check that info file does not already exist
     info = CloudVolume.create_new_info(
         num_channels=1,
         layer_type="image",
@@ -57,22 +62,27 @@ def create_precomputed_info(vsvi_data, cloudpath):
     return info
 
 
-def upload_tiles_to_precomputed(vsvi_root_path, vsvi_data, cloudpath):
+def upload_precomputed_tiles_to_bucket(vsvi_root_path, vsvi_data, cloudpath):
 
     bucket, base_prefix = vsvi_root_path.replace("s3://", "").split("/", 1)
+
     source_prefix = vsvi_data.get("SourceFileNameTemplate").split("/")[1]
     prefix = "/".join([base_prefix, source_prefix])
 
     vol = CloudVolume(cloudpath, mip=0, parallel=False, fill_missing=True, non_aligned_writes=True)
-    # for key in tqdm(_list_objects(bucket, prefix, s3_client)):
-    #     _upload_tile_to_precomputed(vol, bucket, key, vsvi_data, s3_client)
 
-    Parallel(n_jobs=-1)(delayed(_upload_tile_to_precomputed)(vol, bucket, key, vsvi_data) for key in tqdm(_list_objects(bucket, prefix)))
+    if bucket:
+        Parallel(n_jobs=-1)(delayed(_upload_tile_to_precomputed)(vol, bucket, key, vsvi_data) for key in tqdm(_list_objects_cloud(bucket, prefix)))
+        # TODO: add log that counts number of objects copied
+    else:
+        search_dir = os.path.join(vsvi_root_path, source_prefix)
+        Parallel(n_jobs=-1)(delayed(_upload_tile_to_precomputed)(vol, key, vsvi_data) for key in tqdm(_list_objects_local(search_dir)))
+        # TODO: add log that counts number of objects copied
 
 ### Utility Functions ###
 
 
-def _upload_tile_to_precomputed(vol, bucket, key, vsvi_data):
+def _upload_tile_to_precomputed(vol, key, vsvi_data, bucket=None):
     
     filename = pathlib.Path(key)
     if filename.suffix != ".txt":
@@ -88,8 +98,12 @@ def _upload_tile_to_precomputed(vol, bucket, key, vsvi_data):
         # y_stop = min(y_start + dy, vsvi_data["TargetDataSizeY"])
         z_stop = z_start + 1
 
-        image_data = Image.open(io.BytesIO(_get_object_data(bucket, key)))
+        if bucket:
+            image_data = Image.open(io.BytesIO(_get_object_data(bucket, key)))
+        else:
+            image_data = Image.open(key)
         w, h = image_data.size
+
         try:
             vol[x_start : x_start + w, y_start : y_start + h, z_start : z_stop] = (
                 np.expand_dims(np.asarray(image_data).T, 2)
@@ -98,6 +112,7 @@ def _upload_tile_to_precomputed(vol, bucket, key, vsvi_data):
             print(f"Key: {key}")
             raise error
 
+
 def _get_object_data(bucket, key):
     session = boto3.Session()
     s3_client = session.client('s3')
@@ -105,7 +120,7 @@ def _get_object_data(bucket, key):
     return response["Body"].read()
 
 
-def _list_objects(bucket, prefix, start_at=0):
+def _list_objects_cloud(bucket, prefix, start_at=0):
     session = boto3.Session()
     s3_client = session.client('s3')
     paginator = s3_client.get_paginator("list_objects_v2")
@@ -116,7 +131,12 @@ def _list_objects(bucket, prefix, start_at=0):
             if num_obj >= start_at:
                 yield object["Key"]
             
-
+def _list_objects_local(dir):
+    path = pathlib.Path(dir)
+    print(dir)
+    for file in path.rglob("*"):
+        if os.path.splitext(file)[1]:
+            yield file
 
 def _parse_filename(filename, template):
     # 0001_W01_Sec001_tr10-tc16.png
