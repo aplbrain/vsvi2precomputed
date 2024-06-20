@@ -27,11 +27,11 @@ def fetch_s3_vsvi(vsvi_dataset_path):
 def read_local_vsvi(vsvi_dataset_path):
     with open(vsvi_dataset_path, "r") as file:
         json_data = file.read()
-
     vsvi_data = json.loads(json_data.replace("\\", "/"))
     return vsvi_data
 
-def create_precomputed_info(vsvi_data, cloudpath):
+def create_precomputed_info(vsvi_data, path):
+    # Local path must be prepended with "file://"
     # TODO: Need to add check that info file does not already exist
     info = CloudVolume.create_new_info(
         num_channels=1,
@@ -57,32 +57,32 @@ def create_precomputed_info(vsvi_data, cloudpath):
         ],
     )
 
-    vol = CloudVolume(cloudpath, info=info)
+    vol = CloudVolume(path, info=info)
     vol.commit_info()
     return info
 
 
-def upload_precomputed_tiles_to_bucket(vsvi_root_path, vsvi_data, cloudpath):
+def convert_precomputed_tiles(vsvi_root_path, vsvi_data, cloudpath):
 
-    bucket, base_prefix = vsvi_root_path.replace("s3://", "").split("/", 1)
+    input_bucket, base_prefix = vsvi_root_path.replace("s3://", "").split("/", 1)
 
     source_prefix = vsvi_data.get("SourceFileNameTemplate").split("/")[1]
     prefix = "/".join([base_prefix, source_prefix])
 
     vol = CloudVolume(cloudpath, mip=0, parallel=False, fill_missing=True, non_aligned_writes=True)
 
-    if bucket:
-        Parallel(n_jobs=-1)(delayed(_upload_tile_to_precomputed)(vol, bucket, key, vsvi_data) for key in tqdm(_list_objects_cloud(bucket, prefix)))
+    if input_bucket:
+        Parallel(n_jobs=-1)(delayed(_convert_tile)(vol, bucket, key, vsvi_data) for key in tqdm(_list_objects_cloud(input_bucket, prefix)))
         # TODO: add log that counts number of objects copied
     else:
         search_dir = os.path.join(vsvi_root_path, source_prefix)
-        Parallel(n_jobs=-1)(delayed(_upload_tile_to_precomputed)(vol, key, vsvi_data) for key in tqdm(_list_objects_local(search_dir)))
+        Parallel(n_jobs=-1)(delayed(_convert_tile)(vol, key, vsvi_data) for key in tqdm(_list_objects_local(search_dir)))
         # TODO: add log that counts number of objects copied
 
 ### Utility Functions ###
 
 
-def _upload_tile_to_precomputed(vol, key, vsvi_data, bucket=None):
+def _convert_tile(vol, key, vsvi_data, input_bucket=None):
     
     filename = pathlib.Path(key)
     if filename.suffix != ".txt":
@@ -98,8 +98,8 @@ def _upload_tile_to_precomputed(vol, key, vsvi_data, bucket=None):
         # y_stop = min(y_start + dy, vsvi_data["TargetDataSizeY"])
         z_stop = z_start + 1
 
-        if bucket:
-            image_data = Image.open(io.BytesIO(_get_object_data(bucket, key)))
+        if input_bucket:
+            image_data = Image.open(io.BytesIO(_get_object_data(input_bucket, key)))
         else:
             image_data = Image.open(key)
         w, h = image_data.size
