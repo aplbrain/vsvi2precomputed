@@ -98,14 +98,13 @@ def example_s3_uri_border():
 ### TESTS ###
 
 
-def test_parse_vsvi_cloud(vsvi_cloud_path, expected_vsvi_data):
-    vsvi_data = vp.parse_vsvi(vsvi_cloud_path)
+def test_fetch_s3_vsvi(vsvi_cloud_path, expected_vsvi_data):
+    vsvi_data = vp.fetch_s3_vsvi(vsvi_cloud_path)
     assert vsvi_data == expected_vsvi_data
-
 
 def test_create_precomputed_info(
     vsvi_cloud_path, precomputed_cloud_path, expected_precomputed_info):
-    vsvi_data = vp.parse_vsvi(vsvi_cloud_path)
+    vsvi_data = vp.fetch_s3_vsvi(vsvi_cloud_path)
     info = vp.create_precomputed_info(vsvi_data, precomputed_cloud_path)
     assert info == expected_precomputed_info
 
@@ -113,7 +112,7 @@ def test_create_precomputed_info(
 def test_get_objects(vsvi_mip0_path):
     bucket, prefix = vsvi_mip0_path.replace("s3://", "").split("/", 1)
     i = 0
-    for key in vp._list_objects(bucket, prefix):
+    for key in vp._list_objects_cloud(bucket, prefix):
         i += 1
         if i > 100:
             break
@@ -128,15 +127,15 @@ def test_upload_tile(
     precomputed_cloud_path, example_s3_uri, vsvi_cloud_path
 ):
     bucket, key = example_s3_uri.replace("s3://", "").split("/", 1)
-    vsvi_data = vp.parse_vsvi(vsvi_cloud_path)
+    vsvi_data = vp.fetch_s3_vsvi(vsvi_cloud_path)
     vol = CloudVolume(precomputed_cloud_path, mip=0, parallel=False, fill_missing=True)
-    vp._upload_tile_to_precomputed(vol, bucket, key, vsvi_data)
+    vp._convert_tile(vol, key, vsvi_data, input_bucket=bucket)
 
 
 def test_upload_tile_border(
     precomputed_cloud_path, example_s3_uri_border, vsvi_cloud_path
 ):
     bucket, key = example_s3_uri_border.replace("s3://", "").split("/", 1)
-    vsvi_data = vp.parse_vsvi(vsvi_cloud_path)
+    vsvi_data = vp.fetch_s3_vsvi(vsvi_cloud_path)
     vol = CloudVolume(precomputed_cloud_path, mip=0, parallel=False, fill_missing=True)
-    vp._upload_tile_to_precomputed(vol, bucket, key, vsvi_data)
+    vp._convert_tile(vol, key, vsvi_data, input_bucket=bucket)
