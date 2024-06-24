@@ -1,0 +1,35 @@
+{
+  "Comment": "Neha_1mm_ROI1",
+  "ServerType": "imagetiles",
+
+  "SourceFileNameTemplate": ".\mip0\%04d_*\%04d_*_tr%d-tc%d.png",
+  "SourceParamSequence": "ssrc",
+  "SourceMinS": 1,
+  "SourceMaxS": 94,
+  "SourceMinR": 1,
+  "SourceMaxR": 36,
+  "SourceMinC": 1,
+  "SourceMaxC": 47,
+
+  "MipMapFileNameTemplate": ".\mip%d\slice_%04d\r%02d\%04d_tr%d-tc%d.png",
+  "MipMapParamSequence": "msrsrc",
+  "SourceMinM": 1,
+  "SourceMaxM": 8,
+
+  "SourceTileSizeX": 2048,
+  "SourceTileSizeY": 2048,
+  "SourceBytesPerPixel": 1,
+  "MissingImagePolicy": "white",
+
+  "TargetDataSizeX": 95567,
+  "TargetDataSizeY": 73231,
+  "TargetDataSizeZ": 94,
+  "OffsetX": 0,
+  "OffsetY": 0,
+  "OffsetZ": 0,
+  "OffsetMip": 0,
+  "TargetVoxelSizeXnm": 4,
+  "TargetVoxelSizeYnm": 4,
+  "TargetVoxelSizeZnm": 30,
+  "TargetLayerName": "Neha_1mm_ROI1"
+}

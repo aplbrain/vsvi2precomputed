@@ -50,6 +50,10 @@ def create_precomputed_info(vsvi_data, path):
             str path, local path must be prepended with "file://", S3 path must be prepended with "s3://"
     Outputs: no output, but cloudvolume info file will be created at path input
     '''
+    # Prepend "file://" if path is local and does not already have it
+    if path[:5] != "s3://" and path[:7] != "file://":
+        path = "file://" + path
+        
     info = CloudVolume.create_new_info(
         num_channels=1,
         layer_type="image",
@@ -87,12 +91,14 @@ def convert_precomputed_tiles(vsvi_root_path, vsvi_data, output_path):
             str path for output files
     Outputs: new files located at output_path
     '''
-    # Add check for "file://" here, if not existing add it
     input_bucket, base_prefix = vsvi_root_path.replace("s3://", "").split("/", 1)
 
     source_prefix = vsvi_data.get("SourceFileNameTemplate").split("/")[1]
     prefix = "/".join([base_prefix, source_prefix])
 
+    # Prepend "file://" if path is local and does not already have it
+    if output_path[:5] != "s3://" and output_path[:7] != "file://":
+        output_path = "file://" + output_path
     vol = CloudVolume(output_path, mip=0, parallel=False, fill_missing=True, non_aligned_writes=True)
 
     if input_bucket:
@@ -198,7 +204,6 @@ def _parse_filename(filename, template):
     # Template for where z, y, x are in the string is given in vsvi file, but
     #   may not have same path type as filesystem code is running on
     template_string = pathlib.PurePath(template)
-    print(template)
     if template_string.name == template:
         if os.name == "nt":
             template_string = pathlib.PurePosixPath(template)
