@@ -1,17 +1,34 @@
 # vsvi2precomputed
 ![Logo](logo.png)
-Package for converting VSVI (used in VAST) image datasets to precomputed volumes.
+Package for converting VSVI (used in VAST) image datasets to precomputed volumes. Supports conversion of local and AWS S3 datasets.
 
 Requirements:
 * Python
-* AWS CLI (for now)
+* AWS CLI (if using S3)
 
 ## Usage
+
+Convert a cloud dataset and store in new cloud path:
 ```
 pip install -r requirements.txt
-python vsvi2precomputed.py -i s3://path/to/info.vsvi -o s3://path/to/output/dir/
+python vsvi2precomputed.py -i s3://path/to/config.vsvi -o s3://path/to/output/dir/
 ```
 Don't forget the trailing slash on the output dir.
+
+Convert a local dataset and upload to the cloud:
+```
+python vsvi2precomputed.py --i path/to/config.vsvi --o s3://path/to/output/dir/
+```
+
+Convert a cloud dataset and upload to the cloud:
+```
+python vsvi2precomputed.py --i s3://path/to/config.vsvi --o path/to/output/dir/
+```
+
+Convert a dataset locally:
+```
+python vsvi2precomputed.py --i path/to/config.vsvi --o path/to/output/dir/
+```
 
 Optional Arguments
 
@@ -47,3 +64,4 @@ To view converted data in Neuroglancer:
 
 ## Acknowledgements
 
+We thank the Visual Computing Group at Harvard for originally building the VAST software. https://www.frontiersin.org/journals/neural-circuits/articles/10.3389/fncir.2018.00088/full 
