@@ -1,11 +1,14 @@
 import pytest
 import os
+import shutil
 from cloudvolume import CloudVolume
 from .. import vsvi2precomputed as vp
+
 
 @pytest.fixture(scope="session", autouse=True)
 def set_env(request):
     os.environ["AWS_PROFILE"] = request.config.getoption("--profile")
+
 
 @pytest.fixture
 def vsvi_cloud_path():
@@ -20,6 +23,16 @@ def vsvi_mip0_path():
 @pytest.fixture
 def precomputed_cloud_path():
     return "s3://mambo-datalake/connects49a/vsvi2precomputed/test/"
+
+
+@pytest.fixture
+def vsvi_local_path():
+    return "tests/example_config.vsvi"
+
+
+@pytest.fixture
+def precomputed_local_path():
+    return "tests/local_precomputed/"
 
 
 @pytest.fixture
@@ -56,6 +69,7 @@ def expected_vsvi_data():
         "TargetLayerName": "Neha_1mm_ROI1",
     }
 
+
 @pytest.fixture
 def source_file_name_template():
     return "./mip0/%04d_*/%04d_*_tr%d-tc%d.png"
@@ -82,7 +96,7 @@ def expected_precomputed_info():
 
 @pytest.fixture
 def example_filename():
-    return "0001_W01_Sec001_tr10-tc16.png"
+    return "tests/0001_W01_Sec001_tr10-tc16.png"
 
 
 @pytest.fixture
@@ -98,22 +112,34 @@ def example_s3_uri_border():
 ### TESTS ###
 
 
-def test_parse_vsvi_cloud(vsvi_cloud_path, expected_vsvi_data):
-    vsvi_data = vp.parse_vsvi(vsvi_cloud_path)
+def test_fetch_s3_vsvi(vsvi_cloud_path, expected_vsvi_data):
+    vsvi_data = vp.fetch_s3_vsvi(vsvi_cloud_path)
     assert vsvi_data == expected_vsvi_data
 
 
-def test_create_precomputed_info(
+def test_read_local_vsvi(vsvi_local_path, expected_vsvi_data):
+    vsvi_data = vp.read_local_vsvi(vsvi_local_path)
+    assert vsvi_data == expected_vsvi_data
+
+
+def test_create_precomputed_info_cloud(
     vsvi_cloud_path, precomputed_cloud_path, expected_precomputed_info):
-    vsvi_data = vp.parse_vsvi(vsvi_cloud_path)
+    vsvi_data = vp.fetch_s3_vsvi(vsvi_cloud_path)
     info = vp.create_precomputed_info(vsvi_data, precomputed_cloud_path)
     assert info == expected_precomputed_info
 
 
-def test_get_objects(vsvi_mip0_path):
+def test_create_precomputed_info_local(
+    vsvi_local_path, precomputed_local_path, expected_precomputed_info):
+    vsvi_data = vp.read_local_vsvi(vsvi_local_path)
+    info = vp.create_precomputed_info(vsvi_data, precomputed_local_path)
+    assert info == expected_precomputed_info
+
+
+def test_get_objects_cloud(vsvi_mip0_path):
     bucket, prefix = vsvi_mip0_path.replace("s3://", "").split("/", 1)
     i = 0
-    for key in vp._list_objects(bucket, prefix):
+    for key in vp._list_objects_cloud(bucket, prefix):
         i += 1
         if i > 100:
             break
@@ -124,19 +150,43 @@ def test_parse_filename(example_filename, source_file_name_template):
     assert (z, y, x) == (1, 10, 16)
 
 
-def test_upload_tile(
+def test_convert_tile_cloud(
     precomputed_cloud_path, example_s3_uri, vsvi_cloud_path
 ):
     bucket, key = example_s3_uri.replace("s3://", "").split("/", 1)
-    vsvi_data = vp.parse_vsvi(vsvi_cloud_path)
+    vsvi_data = vp.fetch_s3_vsvi(vsvi_cloud_path)
     vol = CloudVolume(precomputed_cloud_path, mip=0, parallel=False, fill_missing=True)
-    vp._upload_tile_to_precomputed(vol, bucket, key, vsvi_data)
+    vp._convert_tile(vol, key, vsvi_data, input_bucket=bucket)
 
 
-def test_upload_tile_border(
+def test_convert_tile_border_cloud(
     precomputed_cloud_path, example_s3_uri_border, vsvi_cloud_path
 ):
     bucket, key = example_s3_uri_border.replace("s3://", "").split("/", 1)
-    vsvi_data = vp.parse_vsvi(vsvi_cloud_path)
+    vsvi_data = vp.fetch_s3_vsvi(vsvi_cloud_path)
     vol = CloudVolume(precomputed_cloud_path, mip=0, parallel=False, fill_missing=True)
-    vp._upload_tile_to_precomputed(vol, bucket, key, vsvi_data)
+    vp._convert_tile(vol, key, vsvi_data, input_bucket=bucket)
+
+
+def test_upload_tile_from_local(
+        precomputed_cloud_path, vsvi_local_path, example_filename
+):
+    vsvi_data = vp.read_local_vsvi(vsvi_local_path)
+    vol = CloudVolume(precomputed_cloud_path, mip=0, parallel=False, fill_missing=True)
+    vp._convert_tile(vol, example_filename, vsvi_data)
+
+
+def test_download_tile_from_cloud(
+        precomputed_local_path, vsvi_cloud_path, example_s3_uri
+):
+    bucket, key = example_s3_uri.replace("s3://", "").split("/", 1)
+    vsvi_data = vp.fetch_s3_vsvi(vsvi_cloud_path)
+    vol = CloudVolume("file://" + precomputed_local_path, mip=0, parallel=False, fill_missing=True)
+    vp._convert_tile(vol, key, vsvi_data, input_bucket=bucket)
+
+
+def test_convert_tile_local(precomputed_local_path, vsvi_local_path, example_filename):
+    vsvi_data = vp.read_local_vsvi(vsvi_local_path)
+    vol = CloudVolume("file://" + precomputed_local_path, mip=0, parallel=False, fill_missing=True)
+    vp._convert_tile(vol, example_filename, vsvi_data)
+    shutil.rmtree(precomputed_local_path)
