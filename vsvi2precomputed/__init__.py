@@ -82,6 +82,42 @@ def create_precomputed_info(vsvi_data, path):
     vol.commit_info()
     return info
 
+def create_precomputed_segmentation_info(vsvi_data):
+    '''
+    Create a precomputed info file.
+    Inputs: dict output of fetch_s3_vsvi() or read_local_vsvi()
+            str path, local path must be prepended with "file://", S3 path must be prepended with "s3://"
+    Outputs: no output, but cloudvolume info file will be created at path input
+    '''
+    # # Prepend "file://" if path is local and does not already have it
+    # if path[:5] != "s3://" and path[:7] != "file://":
+    #     path = "file://" + path
+        
+    info = CloudVolume.create_new_info(
+        num_channels=3,
+        layer_type="segmentation",
+        data_type="uint8", # NOTE THIS LINE IS DIFFERENT
+        encoding="raw",
+        resolution=[
+            vsvi_data["TargetVoxelSizeXnm"],
+            vsvi_data["TargetVoxelSizeYnm"],
+            vsvi_data["TargetVoxelSizeZnm"],
+        ],
+        voxel_offset=[vsvi_data["OffsetX"], vsvi_data["OffsetY"], vsvi_data["OffsetZ"]],
+        chunk_size=[vsvi_data["SourceTileSizeX"], vsvi_data["SourceTileSizeY"], 1],
+        # volume_size=[
+        #     vsvi_data["TargetDataSizeX"] - vsvi_data["SourceMinC"],
+        #     vsvi_data["TargetDataSizeY"] - vsvi_data["SourceMinR"],
+        #     vsvi_data["TargetDataSizeZ"] - vsvi_data["SourceMinS"],
+        # ],
+        volume_size=[
+            vsvi_data["TargetDataSizeX"],
+            vsvi_data["TargetDataSizeY"],
+            vsvi_data["TargetDataSizeZ"],
+        ],
+    )
+
+    return info
 
 def convert_precomputed_tiles(vsvi_root_path, vsvi_data, output_path):
     '''
@@ -99,10 +135,12 @@ def convert_precomputed_tiles(vsvi_root_path, vsvi_data, output_path):
     # Prepend "file://" if path is local and does not already have it
     if output_path[:5] != "s3://" and output_path[:7] != "file://":
         output_path = "file://" + output_path
-    vol = CloudVolume(output_path, mip=0, parallel=False, fill_missing=True, non_aligned_writes=True)
+    info = create_precomputed_segmentation_info(vsvi_data)
+    vol = CloudVolume(output_path, info=info, mip=0, parallel=False, fill_missing=True, non_aligned_writes=True)
+    vol.commit_info()
 
     if input_bucket:
-        Parallel(n_jobs=-1)(delayed(_convert_tile)(vol, input_bucket, key, vsvi_data) for key in tqdm(_list_objects_cloud(input_bucket, prefix)))
+        Parallel(n_jobs=-1)(delayed(_convert_tile)(vol, key, vsvi_data, input_bucket) for key in tqdm(_list_objects_cloud(input_bucket, prefix)))
         # TODO: add log that counts number of objects copied
     else:
         search_dir = os.path.join(vsvi_root_path, source_prefix)
@@ -143,8 +181,11 @@ def _convert_tile(vol, filepath, vsvi_data, input_bucket=None):
         w, h = image_data.size
 
         try:
+            image = np.asarray(image_data)
+            image = image.swapaxes(0, 1)
+            image = np.expand_dims(image, 2)
             vol[x_start : x_start + w, y_start : y_start + h, z_start : z_stop] = (
-                np.expand_dims(np.asarray(image_data).T, 2)
+                image
             )
         except Exception as error:
             print(f"Key: {filepath}")
