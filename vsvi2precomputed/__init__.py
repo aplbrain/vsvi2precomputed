@@ -55,8 +55,8 @@ def create_precomputed_info(vsvi_data, path):
         path = "file://" + path
         
     info = CloudVolume.create_new_info(
-        num_channels=1 if vsvi_data["SourceBytesPerPixel"] == 2 else 3,
-        layer_type="image" if vsvi_data["SourceBytesPerPixel"] == 2 else "segmentation",
+        num_channels=1 if vsvi_data["SourceBytesPerPixel"] <= 2 else 3,
+        layer_type="image" if vsvi_data["SourceBytesPerPixel"] <= 2 else "segmentation",
         data_type="uint16" if vsvi_data["SourceBytesPerPixel"] == 2 else "uint8",
         encoding="raw",
         resolution=[

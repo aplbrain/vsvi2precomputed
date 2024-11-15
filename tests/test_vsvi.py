@@ -181,7 +181,10 @@ def test_download_tile_from_cloud(
 ):
     bucket, key = example_s3_uri.replace("s3://", "").split("/", 1)
     vsvi_data = vp.fetch_s3_vsvi(vsvi_cloud_path)
-    vol = CloudVolume("file://" + precomputed_local_path, mip=0, parallel=False, fill_missing=True)
+    output_path = "file://" + precomputed_local_path
+    info = vp.create_precomputed_info(vsvi_data, output_path)
+    vol = CloudVolume(output_path, info=info, mip=0, parallel=False, fill_missing=True)
+    vol.commit_info()
     vp._convert_tile(vol, key, vsvi_data, input_bucket=bucket)
 
 
