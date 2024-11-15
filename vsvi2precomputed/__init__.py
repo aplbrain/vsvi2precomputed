@@ -55,9 +55,9 @@ def create_precomputed_info(vsvi_data, path):
         path = "file://" + path
         
     info = CloudVolume.create_new_info(
-        num_channels=1,
-        layer_type="image",
-        data_type="uint8" if vsvi_data["SourceBytesPerPixel"] == 1 else "uint16",
+        num_channels=1 if vsvi_data["SourceBytesPerPixel"] == 2 else 3,
+        layer_type="image" if vsvi_data["SourceBytesPerPixel"] == 2 else "segmentation",
+        data_type="uint16" if vsvi_data["SourceBytesPerPixel"] == 2 else "uint8",
         encoding="raw",
         resolution=[
             vsvi_data["TargetVoxelSizeXnm"],
@@ -66,50 +66,6 @@ def create_precomputed_info(vsvi_data, path):
         ],
         voxel_offset=[vsvi_data["OffsetX"], vsvi_data["OffsetY"], vsvi_data["OffsetZ"]],
         chunk_size=[vsvi_data["SourceTileSizeX"], vsvi_data["SourceTileSizeY"], 1],
-        # volume_size=[
-        #     vsvi_data["TargetDataSizeX"] - vsvi_data["SourceMinC"],
-        #     vsvi_data["TargetDataSizeY"] - vsvi_data["SourceMinR"],
-        #     vsvi_data["TargetDataSizeZ"] - vsvi_data["SourceMinS"],
-        # ],
-        volume_size=[
-            vsvi_data["TargetDataSizeX"],
-            vsvi_data["TargetDataSizeY"],
-            vsvi_data["TargetDataSizeZ"],
-        ],
-    )
-
-    vol = CloudVolume(path, info=info)
-    vol.commit_info()
-    return info
-
-def create_precomputed_segmentation_info(vsvi_data):
-    '''
-    Create a precomputed info file.
-    Inputs: dict output of fetch_s3_vsvi() or read_local_vsvi()
-            str path, local path must be prepended with "file://", S3 path must be prepended with "s3://"
-    Outputs: no output, but cloudvolume info file will be created at path input
-    '''
-    # # Prepend "file://" if path is local and does not already have it
-    # if path[:5] != "s3://" and path[:7] != "file://":
-    #     path = "file://" + path
-        
-    info = CloudVolume.create_new_info(
-        num_channels=3,
-        layer_type="segmentation",
-        data_type="uint8", # NOTE THIS LINE IS DIFFERENT
-        encoding="raw",
-        resolution=[
-            vsvi_data["TargetVoxelSizeXnm"],
-            vsvi_data["TargetVoxelSizeYnm"],
-            vsvi_data["TargetVoxelSizeZnm"],
-        ],
-        voxel_offset=[vsvi_data["OffsetX"], vsvi_data["OffsetY"], vsvi_data["OffsetZ"]],
-        chunk_size=[vsvi_data["SourceTileSizeX"], vsvi_data["SourceTileSizeY"], 1],
-        # volume_size=[
-        #     vsvi_data["TargetDataSizeX"] - vsvi_data["SourceMinC"],
-        #     vsvi_data["TargetDataSizeY"] - vsvi_data["SourceMinR"],
-        #     vsvi_data["TargetDataSizeZ"] - vsvi_data["SourceMinS"],
-        # ],
         volume_size=[
             vsvi_data["TargetDataSizeX"],
             vsvi_data["TargetDataSizeY"],
@@ -135,7 +91,7 @@ def convert_precomputed_tiles(vsvi_root_path, vsvi_data, output_path):
     # Prepend "file://" if path is local and does not already have it
     if output_path[:5] != "s3://" and output_path[:7] != "file://":
         output_path = "file://" + output_path
-    info = create_precomputed_segmentation_info(vsvi_data)
+    info = create_precomputed_info(vsvi_data, output_path)
     vol = CloudVolume(output_path, info=info, mip=0, parallel=False, fill_missing=True, non_aligned_writes=True)
     vol.commit_info()
 
