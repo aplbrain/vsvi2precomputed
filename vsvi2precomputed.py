@@ -54,7 +54,6 @@ def main():
         precomputed_path = "file://" + args.output_dir
 
     # Convert
-    vp.create_precomputed_info(vsvi_data, precomputed_path)
     vp.convert_precomputed_tiles(vsvi_root_path, vsvi_data, precomputed_path)
 
     print("Done")
