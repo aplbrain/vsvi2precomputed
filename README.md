@@ -64,7 +64,7 @@ To view converted data in Neuroglancer:
 
 ## Acknowledgements
 
-We thank the Visual Computing Group at Harvard for originally building the VAST software. https://www.frontiersin.org/journals/neural-circuits/articles/10.3389/fncir.2018.00088/full 
+We thank the Visual Computing Group at Harvard for building the VAST software. https://www.frontiersin.org/journals/neural-circuits/articles/10.3389/fncir.2018.00088/full 
 
 ---
 Copyright (c) 2024 The Johns Hopkins University Applied Physics Laboratory LLC.
