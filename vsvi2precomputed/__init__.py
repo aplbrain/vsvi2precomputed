@@ -85,8 +85,8 @@ def convert_precomputed_tiles(vsvi_root_path, vsvi_data, output_path):
     '''
     input_bucket, base_prefix = vsvi_root_path.replace("s3://", "").split("/", 1)
 
-    source_prefix = vsvi_data.get("SourceFileNameTemplate").split("/")[1]
-    prefix = "/".join([base_prefix, source_prefix])
+    source_prefix = vsvi_data.get("SourceFileNameTemplate").split("/")[:-2]
+    prefix = os.path.join(base_prefix, "/".join(source_prefix))
 
     # Prepend "file://" if path is local and does not already have it
     if output_path[:5] != "s3://" and output_path[:7] != "file://":
@@ -99,7 +99,7 @@ def convert_precomputed_tiles(vsvi_root_path, vsvi_data, output_path):
         Parallel(n_jobs=-1)(delayed(_convert_tile)(vol, key, vsvi_data, input_bucket) for key in tqdm(_list_objects_cloud(input_bucket, prefix)))
         # TODO: add log that counts number of objects copied
     else:
-        search_dir = os.path.join(vsvi_root_path, source_prefix)
+        search_dir = os.path.join(vsvi_root_path, "/".join(source_prefix))
         Parallel(n_jobs=-1)(delayed(_convert_tile)(vol, key, vsvi_data) for key in tqdm(_list_objects_local(search_dir)))
         # TODO: add log that counts number of objects copied
 
