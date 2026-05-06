@@ -85,8 +85,8 @@ def convert_precomputed_tiles(vsvi_root_path, vsvi_data, output_path):
     '''
     input_bucket, base_prefix = vsvi_root_path.replace("s3://", "").split("/", 1)
 
-    source_prefix = vsvi_data.get("SourceFileNameTemplate").split("/")[:-2]
-    prefix = os.path.join(base_prefix, "/".join(source_prefix))
+    source_prefix = vsvi_data.get("SourceFileNameTemplate").split("/")[1]
+    prefix = os.path.join(base_prefix, source_prefix)
 
     # Prepend "file://" if path is local and does not already have it
     if output_path[:5] != "s3://" and output_path[:7] != "file://":
@@ -130,13 +130,13 @@ def _convert_tile(vol, filepath, vsvi_data, input_bucket=None):
         # y_stop = min(y_start + dy, vsvi_data["TargetDataSizeY"])
         z_stop = z_start + 1
 
-        if input_bucket:
-            image_data = Image.open(io.BytesIO(_get_object_data(input_bucket, filepath)))
-        else:
-            image_data = Image.open(filepath)
-        w, h = image_data.size
-
         try:
+            if input_bucket:
+                image_data = Image.open(io.BytesIO(_get_object_data(input_bucket, filepath)))
+            else:
+                image_data = Image.open(filepath)
+            w, h = image_data.size
+
             image = np.asarray(image_data)
             image = image.swapaxes(0, 1)
             image = np.expand_dims(image, 2)
@@ -189,30 +189,32 @@ def _list_objects_local(dir):
             yield file
 
 
-def _parse_filename(filename, template):
+def _parse_filename(path, template):
     '''
     Get section (z), row (y), and column (x) numbers for a tile from tile filename. Format showing positions of z, y, x within string is given in template param.
     Inputs: filename to parse (str or pathlib object) example: section_001_tr10-tc16.png
             "SourceFileNameTemplate" field from vsvi file (str) example: section_%05d_tr%d-tc%d.png
     Outputs: z, y, x
     '''
-    filename = pathlib.Path(filename)
+    # 1. normalize
+    path = str(path).replace("\\", "/")
+    template = str(template).replace("\\", "/").lstrip("./")
 
-    # Template for where z, y, x are in the string is given in vsvi file, but
-    #   may not have same path type as filesystem code is running on
-    template_string = pathlib.PurePath(template)
-    if template_string.name == template:
-        if os.name == "nt":
-            template_string = pathlib.PurePosixPath(template)
-        elif os.name == "posix":
-            template_string = pathlib.PureWindowsPath(template)
-    
-    # Replace %d in template with regex indicator for digits
-    regex_template = re.sub('%[0-9]*d', '([0-9]+)', template_string.name)
-    # Parse digits out of input string
-    integer_matches = re.search(regex_template, filename.name)
-    z = int(integer_matches.group(1))
-    y = int(integer_matches.group(2))
-    x = int(integer_matches.group(3))
+    # 2. escape everything
+    regex = re.escape(template)
 
+    # 3. restore semantics
+    regex = re.sub(r'%0?(\d*)d',
+                   lambda m: rf'(\d{{{m.group(1)}}})' if m.group(1) else r'(\d+)',
+                   regex)
+    regex = regex.replace(r'\*', r'[^/]*')
+
+    # 4. match
+    m = re.search(regex + r'$', path)
+    if not m:
+        raise ValueError(f"No match:\n{path}\n{template}")
+
+    z = int(m.groups()[-3])
+    y = int(m.groups()[-2])
+    x = int(m.groups()[-1])
     return z, y, x
