@@ -214,7 +214,7 @@ def _parse_filename(path, template):
     if not m:
         raise ValueError(f"No match:\n{path}\n{template}")
 
-    z = int(m.group(1))
-    y = int(m.group(2))
-    x = int(m.group(3))
+    z = int(m.groups()[-3])
+    y = int(m.groups()[-2])
+    x = int(m.groups()[-1])
     return z, y, x
