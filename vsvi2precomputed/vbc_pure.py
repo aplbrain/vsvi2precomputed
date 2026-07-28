@@ -1,3 +1,19 @@
+from operator import itemgetter
+
+
+def _morton_to_linear(index: int) -> int:
+    x = (index & 1) | ((index >> 1) & 2) | ((index >> 2) & 4) | ((index >> 3) & 8)
+    y = ((index >> 1) & 1) | ((index >> 2) & 2) | ((index >> 3) & 4) | ((index >> 4) & 8)
+    return y * 16 + x
+
+
+MORTON_TO_LINEAR = tuple(_morton_to_linear(index) for index in range(256))
+LINEAR_TO_MORTON = tuple(MORTON_TO_LINEAR.index(index) for index in range(256))
+_DEINTERLEAVE_16_CUBE = itemgetter(
+    *(slice_offset + index for slice_offset in range(0, 4096, 256) for index in LINEAR_TO_MORTON)
+)
+
+
 def unpack_values(data: bytes, count: int, bits: int) -> tuple[bytes, int]:
     if not 0 <= bits <= 8:
         raise ValueError(f"unsupported VBC bit depth: {bits}")
@@ -45,4 +61,12 @@ def decode_vbc(payload: bytes, count=4096, quantization=0) -> bytes:
             predictor = predictors[index % predictor_count]
             output[output_position + index] = ((value << quantization) + predictor) & 0xFF
         output_position += len(values)
-    return bytes(output)
+    if count % 256:
+        raise ValueError("VBC output size must contain complete 16x16 slices")
+    if count == 4096:
+        return bytes(_DEINTERLEAVE_16_CUBE(output))
+    result = bytearray(count)
+    for slice_offset in range(0, count, 256):
+        for linear_index, morton_index in enumerate(LINEAR_TO_MORTON):
+            result[slice_offset + linear_index] = output[slice_offset + morton_index]
+    return bytes(result)
