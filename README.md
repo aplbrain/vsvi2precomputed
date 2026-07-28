@@ -4,30 +4,56 @@ Package for converting VSVI (used in VAST) image datasets to precomputed volumes
 
 Requirements:
 * Python
+* [uv](https://docs.astral.sh/uv/)
 * AWS CLI (if using S3)
 
 ## Usage
 
+### VSV volumes
+
+Convert a local `.vsv` file directly to Neuroglancer precomputed:
+
+```bash
+uv run vsv2precomputed data/volume.vsv s3://bucket/dataset/image \
+  --profile my-profile \
+  --chunk-size 512 512 16 \
+  --workers 4 \
+  --upload-workers 4 \
+  --checkpoint volume.checkpoint.jsonl
+```
+
+The checkpoint is appended after each successful aligned chunk write. Running
+the same command again skips completed chunks. Network operations use exponential
+backoff; adjust attempts with `--retries`. Use `--start X Y Z --shape X Y Z` for
+an aligned subset. `--workers` controls decoding processes and
+`--upload-workers` controls concurrent chunk uploads.
+
+VBC decompression and segmented index lookup are implemented in pure Python.
+Input is currently limited to uint8 VSV2 volumes with
+`16 x 16 x 16` internal bricks.
+
+### VSVI volumes
+
 Convert a cloud dataset and store in new cloud path:
 ```
-pip install -r requirements.txt
-python vsvi2precomputed.py -i s3://path/to/config.vsvi -o s3://path/to/output/dir/
+uv sync
+uv run python vsvi2precomputed.py -i s3://path/to/config.vsvi -o s3://path/to/output/dir/
 ```
 Don't forget the trailing slash on the output dir.
 
 Convert a local dataset and upload to the cloud:
 ```
-python vsvi2precomputed.py --i path/to/config.vsvi --o s3://path/to/output/dir/
+uv run python vsvi2precomputed.py --i path/to/config.vsvi --o s3://path/to/output/dir/
 ```
 
 Convert a cloud dataset and upload to the cloud:
 ```
-python vsvi2precomputed.py --i s3://path/to/config.vsvi --o path/to/output/dir/
+uv run python vsvi2precomputed.py --i s3://path/to/config.vsvi --o path/to/output/dir/
 ```
 
 Convert a dataset locally:
 ```
-python vsvi2precomputed.py --i path/to/config.vsvi --o path/to/output/dir/
+uv run python vsvi2precomputed.py --i path/to/config.vsvi --o path/to/output/dir/
 ```
 
 Optional Arguments
@@ -38,12 +64,12 @@ Optional Arguments
 
 ## Tests
 ```
-pip install pytest
-pytest
+uv sync
+uv run pytest
 ```
 To use an non-default AWS CLI profile:
 ```
-pytest --profile <profile-name>
+uv run pytest --profile <profile-name>
 ```
 
 ## About VSVI and precomputed formats
